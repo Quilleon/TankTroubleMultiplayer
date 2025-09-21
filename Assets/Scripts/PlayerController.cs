@@ -1,9 +1,11 @@
 using System;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using Random = UnityEngine.Random;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     #region Inputs
     
@@ -33,18 +35,32 @@ public class PlayerController : MonoBehaviour
 
     private bool shootPressed;
 
+    private bool crouchPressed;
+
     private void UpdateInputs()
     {
         inputDirection = actionAsset["Move"].ReadValue<Vector2>(); // WASD
 
         shootPressed = actionAsset["Jump"].WasPressedThisFrame(); // Spacebar
+
+        crouchPressed = actionAsset["Crouch"].WasPressedThisFrame(); // Ctrl
     }
     
     #endregion
 
+    #region Variables
+
     private Rigidbody2D rb;
 
     private float tankSpeed = 3, tankRotation = -60;
+
+    #endregion
+
+    #region Network Variables
+
+    private NetworkVariable<int> randomNum = new NetworkVariable<int>(1);
+
+    #endregion
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -55,10 +71,18 @@ public class PlayerController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        Debug.Log(OwnerClientId + "; " + randomNum.Value);
+        
+        if (!IsOwner) return;
+
+        if (shootPressed)
+        {
+            randomNum.Value = Random.Range(0, 100);
+        }
+        
         UpdateInputs();
 
         UpdateMovement();
-        
     }
 
 
@@ -68,13 +92,15 @@ public class PlayerController : MonoBehaviour
         
         if (inputDirection.x != 0)
         {
-            print("Turning");
-            var deltaRotation = zRotation + inputDirection.x * tankRotation * Time.deltaTime;
+            int turningDir = inputDirection.x > 0 ? 1 : -1;
+            
+            //print("Turning");
+            var deltaRotation = zRotation + turningDir * tankRotation * Time.deltaTime;
             transform.rotation = Quaternion.Euler(0, 0, deltaRotation);
         }
         else if (inputDirection.y != 0)
         {
-            print("Moving");
+            //print("Moving");
             //rb.linearVelocity = new Vector2(0, inputDirection.y * tankSpeed);
             
             var moveVector = new Vector2(Mathf.Cos(Mathf.Deg2Rad * zRotation), Mathf.Sin(Mathf.Deg2Rad * zRotation));
