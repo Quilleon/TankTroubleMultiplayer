@@ -1,4 +1,5 @@
 using System;
+using TMPro.Examples;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -38,7 +39,7 @@ public class PlayerController : NetworkBehaviour
     private void UpdateInputs()
     {
         inputDirection.Value = actionAsset["Move"].ReadValue<Vector2>(); // WASD
-        Debug.Log(OwnerClientId + ": " + inputDirection.Value.x);
+        //Debug.Log(OwnerClientId + ": " + inputDirection.Value.x);
 
         shootPressed = actionAsset["Jump"].WasPressedThisFrame(); // Spacebar
     }
@@ -53,6 +54,8 @@ public class PlayerController : NetworkBehaviour
     private Rigidbody2D rb;
 
     private float tankSpeed = 3, tankRotation = -60;
+    
+    [SerializeField] private NetworkObject bulletPrefab;
 
     #endregion
 
@@ -60,8 +63,41 @@ public class PlayerController : NetworkBehaviour
     
     #region Network Variables
 
+    private struct MyCustomData : INetworkSerializable
+    {
+        public int _int;
+        public bool _bool;
+        
+        
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref _int);
+            serializer.SerializeValue(ref _bool);
+        }
+    }
+    
     private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    
+    private NetworkVariable<MyCustomData> customData = new NetworkVariable<MyCustomData>(
+        new MyCustomData() 
+        {
+            _int = 54,
+            _bool = true
+        }, 
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
+
+   
+    public override void OnNetworkSpawn()
+    {
+        // If the network variable is changed from last update, do {}
+        //randomNum.OnValueChanged += (int previousValue, int newValue) => { Debug.Log(OwnerClientId + "; randomNum: " + randomNum.Value); };
+        customData.OnValueChanged += (MyCustomData previousValue, MyCustomData newValue) =>
+        {
+            Debug.Log(OwnerClientId + "; _int: " + newValue._int + ", _bool: " + newValue._bool); 
+        };
+    }
+    
     #endregion
     
     
@@ -75,18 +111,27 @@ public class PlayerController : NetworkBehaviour
     // Update is called once per frame
     void Update()
     {
-        Debug.Log(OwnerClientId + "; " + randomNum.Value);
+        //Debug.Log(OwnerClientId + "; " + randomNum.Value);
         
         if (!IsOwner) return;
-
-        if (shootPressed)
-        {
-            randomNum.Value = Random.Range(0, 100);
-        }
+        
         
         UpdateInputs();
 
         UpdateMovement();
+
+        
+        if (shootPressed)
+        {
+            //randomNum.Value = Random.Range(0, 100);
+            customData.Value = new MyCustomData()
+            {
+                _int = 47,
+                _bool = false
+            };
+            
+            //NetworkManager.Singleton.SpawnManager.InstantiateAndSpawn(bulletPrefab, OwnerClientId, true, false, false, transform.position, transform.rotation);
+        }
     }
 
 

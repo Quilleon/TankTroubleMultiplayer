@@ -255,7 +255,7 @@ MonoBehaviour:
   RotationMaxInterpolationTime: 0.1
   ScaleLerpSmoothing: 1
   ScaleMaxInterpolationTime: 0.1
-  AuthorityMode: 0
+  AuthorityMode: 1
   TickSyncChildren: 0
   UseUnreliableDeltas: 0
   SyncPositionX: 1
@@ -290,6 +290,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   ShowTopMostFoldoutHeaderGroup: 1
+  bulletPrefab: {fileID: 8087476854173124531, guid: 83f9b5139e4f068448856952aee5770f, type: 3}
 --- !u!50 &9173441325354959234
 Rigidbody2D:
   serializedVersion: 5
