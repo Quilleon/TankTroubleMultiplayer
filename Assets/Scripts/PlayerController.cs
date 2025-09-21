@@ -31,23 +31,23 @@ public class PlayerController : NetworkBehaviour
         actionAsset.Disable();
     }
 
-    private Vector2 inputDirection;
+    private NetworkVariable<Vector2> inputDirection = new NetworkVariable<Vector2>(Vector2.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
     private bool shootPressed;
 
-    private bool crouchPressed;
-
     private void UpdateInputs()
     {
-        inputDirection = actionAsset["Move"].ReadValue<Vector2>(); // WASD
+        inputDirection.Value = actionAsset["Move"].ReadValue<Vector2>(); // WASD
+        Debug.Log(OwnerClientId + ": " + inputDirection.Value.x);
 
         shootPressed = actionAsset["Jump"].WasPressedThisFrame(); // Spacebar
-
-        crouchPressed = actionAsset["Crouch"].WasPressedThisFrame(); // Ctrl
     }
     
     #endregion
 
+    
+    
+    
     #region Variables
 
     private Rigidbody2D rb;
@@ -56,11 +56,15 @@ public class PlayerController : NetworkBehaviour
 
     #endregion
 
+    
+    
     #region Network Variables
 
-    private NetworkVariable<int> randomNum = new NetworkVariable<int>(1);
+    private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
     #endregion
+    
+    
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -90,27 +94,27 @@ public class PlayerController : NetworkBehaviour
     {
         var zRotation = transform.eulerAngles.z;
         
-        if (inputDirection.x != 0)
+        if (inputDirection.Value.x != 0)
         {
-            int turningDir = inputDirection.x > 0 ? 1 : -1;
+            int turningDir = inputDirection.Value.x > 0 ? 1 : -1;
             
             //print("Turning");
             var deltaRotation = zRotation + turningDir * tankRotation * Time.deltaTime;
             transform.rotation = Quaternion.Euler(0, 0, deltaRotation);
         }
-        else if (inputDirection.y != 0)
+        else if (inputDirection.Value.y != 0)
         {
             //print("Moving");
             //rb.linearVelocity = new Vector2(0, inputDirection.y * tankSpeed);
             
             var moveVector = new Vector2(Mathf.Cos(Mathf.Deg2Rad * zRotation), Mathf.Sin(Mathf.Deg2Rad * zRotation));
             
-            moveVector *= inputDirection.y;
+            moveVector *= inputDirection.Value.y;
             
             rb.linearVelocity = moveVector.normalized * tankSpeed;
         }
 
-        if (inputDirection.x != 0 || inputDirection.y == 0)
+        if (inputDirection.Value.x != 0 || inputDirection.Value.y == 0)
         {
             rb.linearVelocity = Vector2.zero;
         }
