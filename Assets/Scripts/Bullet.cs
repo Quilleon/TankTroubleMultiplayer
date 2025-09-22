@@ -13,7 +13,7 @@ public class Bullet : NetworkBehaviour
         
         var zRotation = transform.rotation.eulerAngles.z;
         var bulletDir =  new Vector2(Mathf.Cos(Mathf.Deg2Rad * zRotation), Mathf.Sin(Mathf.Deg2Rad * zRotation));
-        print(bulletDir.x);
+        //print(bulletDir.x);
         
         _rb.linearVelocity = bulletDir * bulletSpeed;
 
