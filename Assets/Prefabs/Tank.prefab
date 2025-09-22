@@ -290,6 +290,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   ShowTopMostFoldoutHeaderGroup: 1
+  tankSpeed: 2
+  tankRotation: -60
   bulletPrefab: {fileID: 8087476854173124531, guid: 83f9b5139e4f068448856952aee5770f, type: 3}
 --- !u!50 &9173441325354959234
 Rigidbody2D:

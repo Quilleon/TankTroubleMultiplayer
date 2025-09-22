@@ -1,5 +1,6 @@
 using System;
 using TMPro.Examples;
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -53,9 +54,11 @@ public class PlayerController : NetworkBehaviour
 
     private Rigidbody2D rb;
 
-    private float tankSpeed = 3, tankRotation = -60;
+    [SerializeField] private float tankSpeed = 2, tankRotation = -60;
     
-    [SerializeField] private NetworkObject bulletPrefab;
+    [SerializeField] private GameObject bulletPrefab;
+    
+    private GameObject bulletObject;
 
     #endregion
 
@@ -67,12 +70,14 @@ public class PlayerController : NetworkBehaviour
     {
         public int _int;
         public bool _bool;
+        public FixedString128Bytes message;
         
         
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref _int);
             serializer.SerializeValue(ref _bool);
+            serializer.SerializeValue(ref message);
         }
     }
     
@@ -124,13 +129,15 @@ public class PlayerController : NetworkBehaviour
         if (shootPressed)
         {
             //randomNum.Value = Random.Range(0, 100);
-            customData.Value = new MyCustomData()
-            {
-                _int = 47,
-                _bool = false
-            };
-            
+            //customData.Value = new MyCustomData() { _int = 47, _bool = false };
+            //TestServerRpc();
+
             //NetworkManager.Singleton.SpawnManager.InstantiateAndSpawn(bulletPrefab, OwnerClientId, true, false, false, transform.position, transform.rotation);
+            
+            //bulletObject = Instantiate(bulletPrefab, transform.position, transform.rotation);
+            //bulletObject.GetComponent<NetworkObject>().Spawn(true);
+            
+            SpawnBulletServerRpc();
         }
     }
 
@@ -163,5 +170,20 @@ public class PlayerController : NetworkBehaviour
         {
             rb.linearVelocity = Vector2.zero;
         }
+    }
+
+    [ServerRpc]
+    private void TestServerRpc()
+    {
+        Debug.Log(OwnerClientId + " sends a function over the server.");
+    }
+    
+    [ServerRpc]
+    private void SpawnBulletServerRpc()
+    {
+        bulletObject = Instantiate(bulletPrefab, transform.position, transform.rotation);
+        bulletObject.GetComponent<NetworkObject>().Spawn(true);
+        
+        StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
     }
 }

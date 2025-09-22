@@ -1,3 +1,4 @@
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -5,6 +6,7 @@ public class Bullet : NetworkBehaviour
 {
     private Rigidbody2D _rb;
     [SerializeField] private float bulletSpeed = 3;
+    [SerializeField] private float bulletLifeTime = 2;
     void Start()
     {
         _rb = GetComponent<Rigidbody2D>();
@@ -14,6 +16,14 @@ public class Bullet : NetworkBehaviour
         print(bulletDir.x);
         
         _rb.linearVelocity = bulletDir * bulletSpeed;
+
+        //StartCoroutine(DestroyBullet());
+    }
+
+    public IEnumerator DestroyBullet()
+    {
+        yield return new WaitForSeconds(bulletLifeTime);
+        Destroy(gameObject);
     }
     
 }
