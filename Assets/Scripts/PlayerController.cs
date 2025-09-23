@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using TMPro.Examples;
 using Unity.Collections;
 using Unity.Netcode;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -175,7 +175,7 @@ public class PlayerController : NetworkBehaviour
             int turningDir = inputDirection.Value.x > 0 ? 1 : -1;
             
             //print("Turning");
-            var deltaRotation = zRotation + turningDir * tankRotation * Time.deltaTime;
+            var deltaRotation = zRotation + turningDir * tankRotation * -1 * Time.deltaTime;
             transform.rotation = Quaternion.Euler(0, 0, deltaRotation);
         }
         else // Move with WS
@@ -233,7 +233,7 @@ public class PlayerController : NetworkBehaviour
         bulletObject.GetComponent<NetworkObject>().Spawn(true);
         
         // Start destroy timer on the bullet object (calling it here, means I don't have to implement network into the bullet script)
-        StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
+        //StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
     }
     
     //[ServerRpc(RequireOwnership = false)]
@@ -310,7 +310,7 @@ public class PlayerController : NetworkBehaviour
 
     //[ServerRpc] private void IsDeadServerRpc(bool dead) { isDead.Value = dead; }
 
-    private void OnCollisionEnter2D(Collision2D other)
+    private void OnTriggerEnter2D(Collider2D other)
     {
         if (!IsOwner)
             return;
@@ -322,7 +322,7 @@ public class PlayerController : NetworkBehaviour
             //IsDeadServerRpc(true);
             
             //other.gameObject.GetComponent<NetworkObject>().Despawn();
-            other.gameObject.GetComponent<Bullet>().DestroyBulletServerRpc(0);
+            other.gameObject.GetComponent<Bullet>().DestroyBulletServerRpc();
         }
     }
 }

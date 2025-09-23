@@ -20,31 +20,29 @@ public class Bullet : NetworkBehaviour
         
         _rb.linearVelocity = bulletDir * bulletSpeed;
 
-        //StartCoroutine(DestroyBullet());
+        if (!IsOwner) return;
+        StartCoroutine(DestroyBullet());
     }
 
-    public IEnumerator DestroyBullet()
+    private IEnumerator DestroyBullet()
     {
         yield return new WaitForSeconds(bulletLifeTime);
         
         if (this)
-            Destroy(gameObject);
+            DestroyBulletServerRpc();
     }
     
-    [ServerRpc]
-    public void DestroyBulletServerRpc(float lifeTime)
+    [ServerRpc(RequireOwnership = false)]
+    public void DestroyBulletServerRpc()
     {
+        //if (!IsOwner) return;
         
+        //NetworkManager.Singleton.SpawnManager.SpawnedObjects[0].Despawn();
+        GetComponent<NetworkObject>().Despawn();
     }
 
     private void Update()
     {
-        
-        //destroyTimer
-        
-        if (this)
-            Destroy(gameObject);
 
     }
-    
 }

@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 7655505544335495184}
   - component: {fileID: 6962893431543617582}
   - component: {fileID: 6357510499169126170}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Bullet
   m_TagString: Bullet
   m_Icon: {fileID: 0}
@@ -122,7 +122,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Bullet
   ShowTopMostFoldoutHeaderGroup: 1
   bulletSpeed: 5
-  bulletLifeTime: 8
+  bulletLifeTime: 5
 --- !u!212 &7655505544335495184
 SpriteRenderer:
   m_ObjectHideFlags: 0
