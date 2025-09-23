@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
@@ -63,11 +64,20 @@ public class PlayerController : NetworkBehaviour
 
     private Rigidbody2D rb;
 
+    private AudioSource audioSource;
+
     [SerializeField] private float tankSpeed = 2, tankRotation = -60;
     
     [SerializeField] private GameObject bulletPrefab;
     
     private GameObject bulletObject;
+
+    [SerializeField] private Color[] playerColors;
+    private Color playerColor;
+    
+    [SerializeField] private AudioClip[] songs;
+    
+    [SerializeField] private AudioClip[] sfx;
 
     #endregion
 
@@ -75,6 +85,7 @@ public class PlayerController : NetworkBehaviour
     
     #region Network Variables
 
+    /*
     private struct MyCustomData : INetworkSerializable
     {
         public int _int;
@@ -88,7 +99,7 @@ public class PlayerController : NetworkBehaviour
             serializer.SerializeValue(ref _bool);
             serializer.SerializeValue(ref message);
         }
-    }
+    }*/
 
     private struct BooleanArray : INetworkSerializable
     {
@@ -100,16 +111,18 @@ public class PlayerController : NetworkBehaviour
         }
     }
     
-    private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    //private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     
-    private NetworkVariable<MyCustomData> customData = new NetworkVariable<MyCustomData>(new MyCustomData() { _int = 54, _bool = true }, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    //private NetworkVariable<MyCustomData> customData = new NetworkVariable<MyCustomData>(new MyCustomData() { _int = 54, _bool = true }, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
     // Set true on spawn
     private NetworkVariable<bool> isDead = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     //private bool isDead = false;
     
     //private NetworkVariable<bool[]> spawnPointsOccupied = new NetworkVariable<bool[]>(new bool[5], NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-    private NetworkVariable<BooleanArray> spawnPointsOccupied = new NetworkVariable<BooleanArray>( new BooleanArray() {bools = new bool[5]}, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    private NetworkVariable<BooleanArray> spawnPointsOccupied = new NetworkVariable<BooleanArray>( 
+        new BooleanArray() {bools = new bool[]{false, false, false, false, false}}, 
+        NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     
    
     public override void OnNetworkSpawn()
@@ -120,7 +133,7 @@ public class PlayerController : NetworkBehaviour
         //customData.OnValueChanged += (MyCustomData previousValue, MyCustomData newValue) => { Debug.Log(OwnerClientId + "; _int: " + newValue._int + ", _bool: " + newValue._bool); };
         
         // If isDead becomes true, SpawnPlayer()
-        isDead.OnValueChanged += (value, newValue) => { if (newValue) { Debug.Log(OwnerClientId+ ": Spawned"); SpawnPlayer(); } };
+        isDead.OnValueChanged += (value, newValue) => { if (newValue) { Debug.Log(OwnerClientId+ ": Spawned"); StartCoroutine(PlayerDeath()); } };
     }
     
     #endregion
@@ -130,14 +143,43 @@ public class PlayerController : NetworkBehaviour
     
     void Start()
     {
+        // Assign color based on clientID
+        var spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        
+        int tempID = (int)OwnerClientId;
+        while (tempID >= playerColors.Length)
+            tempID -= playerColors.Length;
+        
+        //print(OwnerClientId +  " joined and changed colour");
+        spriteRenderer.color = playerColors[tempID];
+        playerColor = spriteRenderer.color;
+        
+        
+        // Checks if it is the owner that executes the script
+        if (!IsOwner) return;
+        
+        // Get rigidbody
         rb = GetComponent<Rigidbody2D>();
 
+        // Play music
+        audioSource = GetComponent<AudioSource>();
+        StartCoroutine(PlaySongWithIntro(songs[0], songs[1]));
+        
         // To spawn the player
-        if (IsOwner)
-        {
-            isDead.Value = true;
-            //SpawnPlayerServerRpc();
-        }
+        isDead.Value = true;
+    }
+
+    private IEnumerator PlaySongWithIntro(AudioClip intro, AudioClip loop)
+    {
+        audioSource.loop = false;
+        audioSource.clip = intro;
+        audioSource.Play();
+        
+        yield return new WaitForSeconds(1.8f);
+        
+        audioSource.loop = true;
+        audioSource.clip = loop;
+        audioSource.Play();
     }
 
     
@@ -178,8 +220,8 @@ public class PlayerController : NetworkBehaviour
             var deltaRotation = zRotation + turningDir * tankRotation * -1 * Time.deltaTime;
             transform.rotation = Quaternion.Euler(0, 0, deltaRotation);
         }
-        else // Move with WS
-        if (inputDirection.Value.y != 0)
+        //else // Move with WS
+        //if (inputDirection.Value.y != 0)
         {
             //print("Moving");
             //rb.linearVelocity = new Vector2(0, inputDirection.y * tankSpeed);
@@ -192,9 +234,10 @@ public class PlayerController : NetworkBehaviour
         }
 
         // If not pressing anything, set velocity to zero
-        if (inputDirection.Value.x != 0 || inputDirection.Value.y == 0)
+        if (inputDirection.Value.y == 0) // || inputDirection.Value.x != 0 
         {
             rb.linearVelocity = Vector2.zero;
+            
         }
         
         
@@ -216,30 +259,40 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
-    [ServerRpc]
-    private void TestServerRpc()
-    {
-        Debug.Log(OwnerClientId + " sends a function over the server.");
-    }
+    //[ServerRpc] private void TestServerRpc() { Debug.Log(OwnerClientId + " sends a function over the server."); }
 
     private int spawnPointUsed = -1;
     
     [ServerRpc]
     private void SpawnBulletServerRpc()
     {
+        audioSource.PlayOneShot(sfx[0]); // Bullet shot
+        
         // Spawns the bullet and asks the server to do the same
         var muzzlePos = transform.GetChild(2).position;
         bulletObject = Instantiate(bulletPrefab, muzzlePos, transform.rotation);
         bulletObject.GetComponent<NetworkObject>().Spawn(true);
+        
+        bulletObject.GetComponent<SpriteRenderer>().color = playerColor;
         
         // Start destroy timer on the bullet object (calling it here, means I don't have to implement network into the bullet script)
         //StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
     }
     
     //[ServerRpc(RequireOwnership = false)]
-    private void SpawnPlayer()
+
+    private IEnumerator PlayerDeath()
     {
-        Debug.Log(OwnerClientId + ": activated spawn");
+        audioSource.PlayOneShot(sfx[1]);
+        
+        yield return new WaitUntil(() => true);
+        
+        PlayerSpawn();
+    }
+    
+    private void PlayerSpawn()
+    {
+        Debug.Log(OwnerClientId + " spawned");
 
         if (spawnPointUsed >= 0)
         {
@@ -276,11 +329,16 @@ public class PlayerController : NetworkBehaviour
             }
             else
             {
-                print("Chose spawn point " + spawnPointID);
+                //print("Chose spawn point " + spawnPointID);
                 
                 // Claim spawn point
                 spawnPointsOccupied.Value.bools[spawnPointID] = true;
                 spawnPointUsed = spawnPointID;
+
+                foreach (var variable in spawnPointsOccupied.Value.bools)
+                {
+                    print(variable);
+                }
                 
                 // Move to spawnPoint
                 transform.position = spawnPoints[spawnPointID].position;
@@ -294,12 +352,14 @@ public class PlayerController : NetworkBehaviour
 
         // Activates tank and gives control to the player
         //ActivateTank(true);
+
+        //yield return null;
     }
 
     [ServerRpc]
     private void ActivateTankServerRpc(bool active)
     {
-        Debug.Log(OwnerClientId + ": tried to visualize the tank");
+        //Debug.Log(OwnerClientId + ": tried to visualize the tank");
         
         // De/Activate children
         for (int i = 0; i < transform.childCount; i++)
