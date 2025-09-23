@@ -221,22 +221,31 @@ public class PlayerController : NetworkBehaviour
     {
         Debug.Log(OwnerClientId + " sends a function over the server.");
     }
+
+    private int spawnPointUsed = -1;
     
     [ServerRpc]
     private void SpawnBulletServerRpc()
     {
         // Spawns the bullet and asks the server to do the same
-        bulletObject = Instantiate(bulletPrefab, transform.position, transform.rotation);
+        var muzzlePos = transform.GetChild(2).position;
+        bulletObject = Instantiate(bulletPrefab, muzzlePos, transform.rotation);
         bulletObject.GetComponent<NetworkObject>().Spawn(true);
         
         // Start destroy timer on the bullet object (calling it here, means I don't have to implement network into the bullet script)
         StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
     }
-
+    
     //[ServerRpc(RequireOwnership = false)]
     private void SpawnPlayer()
     {
         Debug.Log(OwnerClientId + ": activated spawn");
+
+        if (spawnPointUsed >= 0)
+        {
+            // Reset previously used spawnPoint
+            spawnPointsOccupied.Value.bools[spawnPointUsed] = false;
+        }
         
         // 
         isDead.Value = false;
@@ -271,6 +280,7 @@ public class PlayerController : NetworkBehaviour
                 
                 // Claim spawn point
                 spawnPointsOccupied.Value.bools[spawnPointID] = true;
+                spawnPointUsed = spawnPointID;
                 
                 // Move to spawnPoint
                 transform.position = spawnPoints[spawnPointID].position;
@@ -295,6 +305,24 @@ public class PlayerController : NetworkBehaviour
         for (int i = 0; i < transform.childCount; i++)
         {
             transform.GetChild(i).gameObject.SetActive(active);
+        }
+    }
+
+    //[ServerRpc] private void IsDeadServerRpc(bool dead) { isDead.Value = dead; }
+
+    private void OnCollisionEnter2D(Collision2D other)
+    {
+        if (!IsOwner)
+            return;
+        
+        if (other.gameObject.CompareTag("Bullet"))
+        {
+            Debug.Log(OwnerClientId + " died!");
+            isDead.Value = true;
+            //IsDeadServerRpc(true);
+            
+            //other.gameObject.GetComponent<NetworkObject>().Despawn();
+            other.gameObject.GetComponent<Bullet>().DestroyBulletServerRpc(0);
         }
     }
 }

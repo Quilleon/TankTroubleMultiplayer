@@ -6,7 +6,10 @@ public class Bullet : NetworkBehaviour
 {
     private Rigidbody2D _rb;
     [SerializeField] private float bulletSpeed = 3;
-    [SerializeField] private float bulletLifeTime = 2;
+    public float bulletLifeTime = 2;
+
+    //private bool destroy;
+    //private float destroyTimer;
     void Start()
     {
         _rb = GetComponent<Rigidbody2D>();
@@ -23,7 +26,25 @@ public class Bullet : NetworkBehaviour
     public IEnumerator DestroyBullet()
     {
         yield return new WaitForSeconds(bulletLifeTime);
-        Destroy(gameObject);
+        
+        if (this)
+            Destroy(gameObject);
+    }
+    
+    [ServerRpc]
+    public void DestroyBulletServerRpc(float lifeTime)
+    {
+        
+    }
+
+    private void Update()
+    {
+        
+        //destroyTimer
+        
+        if (this)
+            Destroy(gameObject);
+
     }
     
 }
