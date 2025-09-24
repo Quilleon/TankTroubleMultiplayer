@@ -5,6 +5,7 @@ using TMPro;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.UI;
 
 public class NewEmptyCSharpScript : MonoBehaviour
@@ -15,6 +16,10 @@ public class NewEmptyCSharpScript : MonoBehaviour
 
     [SerializeField] private TMP_InputField inputIP;
     [SerializeField] private TMP_InputField inputPort;
+    
+    [SerializeField] private Slider slider;
+    private float prevSliderValue;
+    [SerializeField] private AudioMixer mixer;
     
 
 
@@ -53,5 +58,16 @@ private void Awake()
         
         var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         transport.SetConnectionData(inputText, port, listenAddress);
+    }
+
+    private void Update()
+    {
+        var value = (slider.value*100-80)/2;
+        
+        
+        if (slider.value != prevSliderValue)
+            mixer.SetFloat("MasterVolume", slider.value < 0.1f ? -80f : value);
+        
+        prevSliderValue = slider.value;
     }
 }

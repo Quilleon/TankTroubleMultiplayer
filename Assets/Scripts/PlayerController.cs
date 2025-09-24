@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -66,18 +67,26 @@ public class PlayerController : NetworkBehaviour
 
     private AudioSource audioSource;
 
-    [SerializeField] private float tankSpeed = 2, tankRotation = -60;
+    [SerializeField] private float tankSpeed = 2, tankRotation = 100;
     
     [SerializeField] private GameObject bulletPrefab;
     
     private GameObject bulletObject;
 
+    public int bulletCount;
+    private int maxBulletCount = 5;
+
+    private NetworkVariable<bool> firedBullet = new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    //private NetworkTransform bulletTransform;
+
     [SerializeField] private Color[] playerColors;
-    private Color playerColor;
+    public Color playerColor;
     
     [SerializeField] private AudioClip[] songs;
     
     [SerializeField] private AudioClip[] sfx;
+    
+    private int spawnPointUsed = -1;
 
     #endregion
 
@@ -101,6 +110,16 @@ public class PlayerController : NetworkBehaviour
         }
     }*/
 
+    
+    
+    //private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    
+    //private NetworkVariable<MyCustomData> customData = new NetworkVariable<MyCustomData>(new MyCustomData() { _int = 54, _bool = true }, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
+    // Set true on spawn
+    private NetworkVariable<bool> isDead = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    //private bool isDead = false;
+    
     private struct BooleanArray : INetworkSerializable
     {
         public bool[] bools;
@@ -111,17 +130,9 @@ public class PlayerController : NetworkBehaviour
         }
     }
     
-    //private NetworkVariable<int> randomNum = new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-    
-    //private NetworkVariable<MyCustomData> customData = new NetworkVariable<MyCustomData>(new MyCustomData() { _int = 54, _bool = true }, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-
-    // Set true on spawn
-    private NetworkVariable<bool> isDead = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-    //private bool isDead = false;
-    
     //private NetworkVariable<bool[]> spawnPointsOccupied = new NetworkVariable<bool[]>(new bool[5], NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private NetworkVariable<BooleanArray> spawnPointsOccupied = new NetworkVariable<BooleanArray>( 
-        new BooleanArray() {bools = new bool[]{false, false, false, false, false}}, 
+        new BooleanArray() {bools = new bool[5]}, //{false, false, false, false, false}
         NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     
    
@@ -133,7 +144,18 @@ public class PlayerController : NetworkBehaviour
         //customData.OnValueChanged += (MyCustomData previousValue, MyCustomData newValue) => { Debug.Log(OwnerClientId + "; _int: " + newValue._int + ", _bool: " + newValue._bool); };
         
         // If isDead becomes true, SpawnPlayer()
-        isDead.OnValueChanged += (value, newValue) => { if (newValue) { Debug.Log(OwnerClientId+ ": Spawned"); StartCoroutine(PlayerDeath()); } };
+        isDead.OnValueChanged += (value, newValue) => { if (newValue)
+        {
+            if (!IsOwner) return; 
+            Debug.Log(OwnerClientId+ ": Spawned"); StartCoroutine(PlayerDeath()); 
+        } };
+        
+        firedBullet.OnValueChanged += (value, newValue) => { if (newValue) 
+        { 
+            Debug.Log(OwnerClientId+ " shot a bullet");
+            
+            SpawnBulletServerRpc();
+        } };
     }
     
     #endregion
@@ -146,14 +168,15 @@ public class PlayerController : NetworkBehaviour
         // Assign color based on clientID
         var spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         
-        int tempID = (int)OwnerClientId;
-        while (tempID >= playerColors.Length)
-            tempID -= playerColors.Length;
+        int colorID = (int)OwnerClientId;
+        while (colorID >= playerColors.Length)
+            colorID -= playerColors.Length;
         
         //print(OwnerClientId +  " joined and changed colour");
-        spriteRenderer.color = playerColors[tempID];
+        spriteRenderer.color = playerColors[colorID];
         playerColor = spriteRenderer.color;
         
+        audioSource = GetComponent<AudioSource>();
         
         // Checks if it is the owner that executes the script
         if (!IsOwner) return;
@@ -162,7 +185,6 @@ public class PlayerController : NetworkBehaviour
         rb = GetComponent<Rigidbody2D>();
 
         // Play music
-        audioSource = GetComponent<AudioSource>();
         StartCoroutine(PlaySongWithIntro(songs[0], songs[1]));
         
         // To spawn the player
@@ -175,7 +197,7 @@ public class PlayerController : NetworkBehaviour
         audioSource.clip = intro;
         audioSource.Play();
         
-        yield return new WaitForSeconds(1.8f);
+        yield return new WaitForSeconds(intro.length); //1.8f
         
         audioSource.loop = true;
         audioSource.clip = loop;
@@ -185,6 +207,9 @@ public class PlayerController : NetworkBehaviour
     
     void Update()
     {
+        //bulletObject.GetComponentInChildren<SpriteRenderer>().color = playerColor;
+        //if (bulletObject) bulletObject.GetComponent<Bullet>().OwnerController = this;
+        
         //Debug.Log(OwnerClientId + "; " + randomNum.Value);
         
         if (!IsOwner) return;
@@ -255,25 +280,49 @@ public class PlayerController : NetworkBehaviour
             //bulletObject = Instantiate(bulletPrefab, transform.position, transform.rotation);
             //bulletObject.GetComponent<NetworkObject>().Spawn(true);
             
-            SpawnBulletServerRpc();
+            /*
+            var muzzlePos = transform.GetChild(2).position;
+            bulletObject = Instantiate(bulletPrefab, muzzlePos, transform.rotation);
+            
+            bulletObject.GetComponentInChildren<SpriteRenderer>().color = playerColor;
+            */
+
+            //if (bulletCount < maxBulletCount)
+            {
+                //bulletCount++;
+                //firedBullet.Value = true;
+                //bulletTransform = 
+                
+                SpawnBulletServerRpc();
+                
+                //bulletObject.GetComponent<Bullet>().OwnerController = this;
+            }
         }
     }
 
     //[ServerRpc] private void TestServerRpc() { Debug.Log(OwnerClientId + " sends a function over the server."); }
 
-    private int spawnPointUsed = -1;
+    
     
     [ServerRpc]
     private void SpawnBulletServerRpc()
     {
         audioSource.PlayOneShot(sfx[0]); // Bullet shot
+
+        //if (!IsServer) return;
         
         // Spawns the bullet and asks the server to do the same
         var muzzlePos = transform.GetChild(2).position;
         bulletObject = Instantiate(bulletPrefab, muzzlePos, transform.rotation);
         bulletObject.GetComponent<NetworkObject>().Spawn(true);
         
-        bulletObject.GetComponent<SpriteRenderer>().color = playerColor;
+        bulletObject.GetComponent<Bullet>().bulletColor.Value = playerColor;
+
+        //if (IsServer) BulletOwnerRpc();
+        
+        //bulletObject.GetComponent<Bullet>().OwnerController = this;
+        
+        //bulletObject.GetComponentInChildren<SpriteRenderer>().color = playerColor;
         
         // Start destroy timer on the bullet object (calling it here, means I don't have to implement network into the bullet script)
         //StartCoroutine(bulletObject.GetComponent<Bullet>().DestroyBullet());
@@ -292,7 +341,7 @@ public class PlayerController : NetworkBehaviour
     
     private void PlayerSpawn()
     {
-        Debug.Log(OwnerClientId + " spawned");
+        //Debug.Log(OwnerClientId + " spawned");
 
         if (spawnPointUsed >= 0)
         {
@@ -382,7 +431,7 @@ public class PlayerController : NetworkBehaviour
             //IsDeadServerRpc(true);
             
             //other.gameObject.GetComponent<NetworkObject>().Despawn();
-            other.gameObject.GetComponent<Bullet>().DestroyBulletServerRpc();
+            other.gameObject.GetComponentInParent<Bullet>().DestroyBulletServerRpc();
         }
     }
 }
