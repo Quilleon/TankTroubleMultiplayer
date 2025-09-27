@@ -8,6 +8,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using Random = UnityEngine.Random;
 
 public class PlayerController : NetworkBehaviour
@@ -72,9 +73,12 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private GameObject bulletPrefab;
     
     private GameObject bulletObject;
+    
+    private bool canShoot = true, willShoot;
+    //[Range(0, 5)] 
+    private int ammo, maxAmmo = 5;
 
-    public int bulletCount;
-    private int maxBulletCount = 5;
+    private float shootingCooldown = .2f, willShootBufferTimerTime = .5f, reloadTime = 8;
 
     private NetworkVariable<bool> firedBullet = new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     //private NetworkTransform bulletTransform;
@@ -211,6 +215,9 @@ public class PlayerController : NetworkBehaviour
         //if (bulletObject) bulletObject.GetComponent<Bullet>().OwnerController = this;
         
         //Debug.Log(OwnerClientId + "; " + randomNum.Value);
+
+        // This can be avoided if the player only has one life and the map resets when respawning
+        ammo = Mathf.Clamp(ammo, 0, 5);
         
         if (!IsOwner) return;
         
@@ -269,7 +276,14 @@ public class PlayerController : NetworkBehaviour
         #endregion
         
         
-        if (shootPressed)
+        if (shootPressed && !canShoot)
+        {
+            willShoot = true;
+
+            willShootBufferTimerIEnumerator = WillShootBufferTimer();
+            StartCoroutine(willShootBufferTimerIEnumerator);
+        }
+        else if ((shootPressed || willShoot) && canShoot && ammo > 0) // Ammo and cooldown
         {
             //randomNum.Value = Random.Range(0, 100);
             //customData.Value = new MyCustomData() { _int = 47, _bool = false };
@@ -293,13 +307,46 @@ public class PlayerController : NetworkBehaviour
                 //firedBullet.Value = true;
                 //bulletTransform = 
                 
-                SpawnBulletServerRpc();
+                //SpawnBulletServerRpc();
                 
                 //bulletObject.GetComponent<Bullet>().OwnerController = this;
             }
+            
+            
+            willShoot = false;
+            if (willShootBufferTimerIEnumerator != null)
+            {
+                StopCoroutine(willShootBufferTimerIEnumerator);
+                willShootBufferTimerIEnumerator = null;
+            }
+
+            StartCoroutine(ShootingCooldown());
+            StartCoroutine(ReloadBullet());
+            
+            SpawnBulletServerRpc();
         }
     }
 
+    private IEnumerator willShootBufferTimerIEnumerator;
+    private IEnumerator WillShootBufferTimer()
+    {
+        yield return new WaitForSeconds(willShootBufferTimerTime);
+        willShoot = false;
+    }
+
+    private IEnumerator ShootingCooldown()
+    {
+        canShoot = false;
+        yield return new WaitForSeconds(shootingCooldown);
+        canShoot = true;
+    }
+
+    private IEnumerator ReloadBullet()
+    {
+        ammo--;
+        yield return new WaitForSeconds(reloadTime);
+        ammo++;
+    }
     //[ServerRpc] private void TestServerRpc() { Debug.Log(OwnerClientId + " sends a function over the server."); }
 
     
@@ -395,14 +442,10 @@ public class PlayerController : NetworkBehaviour
             }
         }
         
+        // Gives control to the player and activates the tank
         characterControl = true;
-        
+        ammo = maxAmmo;
         ActivateTankServerRpc(true);
-
-        // Activates tank and gives control to the player
-        //ActivateTank(true);
-
-        //yield return null;
     }
 
     [ServerRpc]

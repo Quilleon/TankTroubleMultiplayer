@@ -63,10 +63,8 @@ public class Bullet : NetworkBehaviour
     public void DestroyBulletServerRpc()
     {
         //if (!IsOwner) return;
-        if (OwnerController)
-            OwnerController.bulletCount--;
-        else
-            Debug.LogError("OwnerController is not set!");
+        //if (OwnerController) OwnerController.bulletCount--; // Have to use ammo it this ever starts working
+        //else Debug.LogError("OwnerController is not set!");
         
         //NetworkManager.Singleton.SpawnManager.SpawnedObjects[0].Despawn();
         GetComponent<NetworkObject>().Despawn();
