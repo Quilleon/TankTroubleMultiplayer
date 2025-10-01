@@ -70,6 +70,8 @@ public class PlayerController : NetworkBehaviour
 
     [SerializeField] private float tankSpeed = 2, tankRotation = 100;
     
+    [SerializeField] private float respawnTime = 3;
+    
     [SerializeField] private GameObject bulletPrefab;
     
     private GameObject bulletObject;
@@ -80,6 +82,7 @@ public class PlayerController : NetworkBehaviour
 
     private float shootingCooldown = .2f, willShootBufferTimerTime = .5f, reloadTime = 8;
 
+    
     private NetworkVariable<bool> firedBullet = new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     //private NetworkTransform bulletTransform;
 
@@ -91,6 +94,9 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private AudioClip[] sfx;
     
     private int spawnPointUsed = -1;
+
+    private GameObject deathScreenParent;
+
 
     #endregion
 
@@ -154,12 +160,14 @@ public class PlayerController : NetworkBehaviour
             Debug.Log(OwnerClientId+ ": Spawned"); StartCoroutine(PlayerDeath()); 
         } };
         
+        /*
         firedBullet.OnValueChanged += (value, newValue) => { if (newValue) 
         { 
             Debug.Log(OwnerClientId+ " shot a bullet");
             
-            SpawnBulletServerRpc();
+            //SpawnBulletServerRpc();
         } };
+        */
     }
     
     #endregion
@@ -169,6 +177,8 @@ public class PlayerController : NetworkBehaviour
     
     void Start()
     {
+        deathScreenParent = GameObject.Find("DeathScreenParent");
+        
         // Assign color based on clientID
         var spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         
@@ -192,16 +202,15 @@ public class PlayerController : NetworkBehaviour
         StartCoroutine(PlaySongWithIntro(songs[0], songs[1]));
         
         // To spawn the player
-        isDead.Value = true;
+        //isDead.Value = true;
+        PlayerSpawn();
     }
 
     private IEnumerator PlaySongWithIntro(AudioClip intro, AudioClip loop)
     {
-        audioSource.loop = false;
-        audioSource.clip = intro;
-        audioSource.Play();
+        audioSource.PlayOneShot(intro);
         
-        yield return new WaitForSeconds(intro.length); //1.8f
+        yield return new WaitForSeconds(intro.length + .1f); 
         
         audioSource.loop = true;
         audioSource.clip = loop;
@@ -323,7 +332,7 @@ public class PlayerController : NetworkBehaviour
             StartCoroutine(ShootingCooldown());
             StartCoroutine(ReloadBullet());
             
-            SpawnBulletServerRpc();
+            SpawnBulletServerRpc(transform.GetChild(2).position);
         }
     }
 
@@ -352,14 +361,23 @@ public class PlayerController : NetworkBehaviour
     
     
     [ServerRpc]
-    private void SpawnBulletServerRpc()
+    private void SpawnBulletServerRpc(Vector3 spawnPos)
     {
-        audioSource.PlayOneShot(sfx[0]); // Bullet shot
+        // Add this to the bullet when spawning instead
+        //audioSource.PlayOneShot(sfx[0]); // Bullet shot
 
         //if (!IsServer) return;
         
         // Spawns the bullet and asks the server to do the same
-        var muzzlePos = transform.GetChild(2).position;
+
+        if ((spawnPos - transform.position).magnitude > 1)
+        {
+            Debug.LogError("CHEATER!!!! Or you may be lagging a whole bunch, anyways, no bullet for you.");
+            return;
+        }
+        
+        var muzzlePos = spawnPos;
+        
         bulletObject = Instantiate(bulletPrefab, muzzlePos, transform.rotation);
         bulletObject.GetComponent<NetworkObject>().Spawn(true);
         
@@ -379,11 +397,27 @@ public class PlayerController : NetworkBehaviour
 
     private IEnumerator PlayerDeath()
     {
+        // Disable Tank
+        ActivateTankServerRpc(false);
+        
+        //TODO: Play explosion animation
         audioSource.PlayOneShot(sfx[1]);
         
-        yield return new WaitUntil(() => true);
+        // Client rpc calling the deathScreen
+        ActivateDeathScreenClientRpc(true);
+        
+        yield return new WaitForSeconds(respawnTime);
+        
+        ActivateDeathScreenClientRpc(false);
         
         PlayerSpawn();
+    }
+
+    [ClientRpc]
+    private void ActivateDeathScreenClientRpc(bool active)
+    {
+        //GameObject.Find("DeathScreen").SetActive(active);
+        deathScreenParent.transform.GetChild(0).gameObject.SetActive(active);
     }
     
     private void PlayerSpawn()
@@ -443,14 +477,18 @@ public class PlayerController : NetworkBehaviour
         }
         
         // Gives control to the player and activates the tank
-        characterControl = true;
-        ammo = maxAmmo;
+        //characterControl = true;
+        //ammo = maxAmmo;
         ActivateTankServerRpc(true);
     }
 
     [ServerRpc]
     private void ActivateTankServerRpc(bool active)
     {
+        characterControl = active;
+        
+        ammo = maxAmmo;
+        
         //Debug.Log(OwnerClientId + ": tried to visualize the tank");
         
         // De/Activate children
@@ -459,8 +497,7 @@ public class PlayerController : NetworkBehaviour
             transform.GetChild(i).gameObject.SetActive(active);
         }
     }
-
-    //[ServerRpc] private void IsDeadServerRpc(bool dead) { isDead.Value = dead; }
+    
 
     private void OnTriggerEnter2D(Collider2D other)
     {

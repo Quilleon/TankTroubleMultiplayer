@@ -5,8 +5,6 @@ using UnityEngine;
 
 public class Bullet : NetworkBehaviour
 {
-    public PlayerController OwnerController;
-    
     private Rigidbody2D _rb;
     private AudioSource _audio;
     private SpriteRenderer _sprite;
