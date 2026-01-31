@@ -157,7 +157,9 @@ public class PlayerController : NetworkBehaviour
         isDead.OnValueChanged += (value, newValue) => { if (newValue)
         {
             if (!IsOwner) return; 
-            Debug.Log(OwnerClientId+ ": Spawned"); StartCoroutine(PlayerDeath()); 
+            Debug.Log(OwnerClientId+ ": Spawned");
+            StartCoroutine(PlayerDeath());
+            ActivateDeathScreenClientRpc();
         } };
         
         /*
@@ -202,8 +204,8 @@ public class PlayerController : NetworkBehaviour
         StartCoroutine(PlaySongWithIntro(songs[0], songs[1]));
         
         // To spawn the player
-        //isDead.Value = true;
-        PlayerSpawn();
+        isDead.Value = true;
+        //PlayerSpawn();
     }
 
     private IEnumerator PlaySongWithIntro(AudioClip intro, AudioClip loop)
@@ -372,7 +374,7 @@ public class PlayerController : NetworkBehaviour
 
         if ((spawnPos - transform.position).magnitude > 1)
         {
-            Debug.LogError("CHEATER!!!! Or you may be lagging a whole bunch, anyways, no bullet for you.");
+            Debug.LogError("CHEATER!!!! Or you may be lagging a whole bunch, anyways, no bullet for you :(");
             return;
         }
         
@@ -404,21 +406,35 @@ public class PlayerController : NetworkBehaviour
         audioSource.PlayOneShot(sfx[1]);
         
         // Client rpc calling the deathScreen
-        ActivateDeathScreenClientRpc(true);
+        //ActivateDeathScreenClientRpc();
         
         yield return new WaitForSeconds(respawnTime);
         
-        ActivateDeathScreenClientRpc(false);
+        //ActivateDeathScreenClientRpc();
         
         PlayerSpawn();
     }
 
     [ClientRpc]
-    private void ActivateDeathScreenClientRpc(bool active)
+    private void ActivateDeathScreenClientRpc()
     {
+        if (!IsOwner)
+            return;
+        
         //GameObject.Find("DeathScreen").SetActive(active);
-        deathScreenParent.transform.GetChild(0).gameObject.SetActive(active);
+        
+        StartCoroutine(DeathScreenTimer());
     }
+
+    private IEnumerator DeathScreenTimer()
+    {
+        deathScreenParent.transform.GetChild(0).gameObject.SetActive(true);
+        
+        yield return new WaitForSeconds(respawnTime);
+        
+        deathScreenParent.transform.GetChild(0).gameObject.SetActive(false);
+    }
+    
     
     private void PlayerSpawn()
     {
@@ -477,18 +493,14 @@ public class PlayerController : NetworkBehaviour
         }
         
         // Gives control to the player and activates the tank
-        //characterControl = true;
-        //ammo = maxAmmo;
+        characterControl = true;
+        ammo = maxAmmo;
         ActivateTankServerRpc(true);
     }
 
     [ServerRpc]
     private void ActivateTankServerRpc(bool active)
     {
-        characterControl = active;
-        
-        ammo = maxAmmo;
-        
         //Debug.Log(OwnerClientId + ": tried to visualize the tank");
         
         // De/Activate children
